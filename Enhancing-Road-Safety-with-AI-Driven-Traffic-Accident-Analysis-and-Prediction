@@ -1,0 +1,68 @@
+# Enhancing Road Safety with AI-Driven Traffic Accident Analysis and Prediction
+
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import streamlit as st
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, confusion_matrix
+import shap
+import plotly.express as px
+
+# Load dataset
+@st.cache_data
+def load_data():
+    data = pd.read_csv("accident_data.csv")
+    return data
+
+# Preprocess data
+def preprocess_data(data):
+    data = data.dropna()
+    X = data.drop(["Accident_Severity"], axis=1)
+    y = data["Accident_Severity"]
+    return train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train model
+def train_model(X_train, y_train):
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
+    return model
+
+# Explain model
+def explain_model(model, X_train):
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(X_train)
+    return explainer, shap_values
+
+# Streamlit UI
+st.title("🚦 AI-Driven Traffic Accident Risk Prediction")
+data = load_data()
+st.subheader("Dataset Preview")
+st.dataframe(data.head())
+
+if st.button("Train Model"):
+    X_train, X_test, y_train, y_test = preprocess_data(data)
+    model = train_model(X_train, y_train)
+    y_pred = model.predict(X_test)
+
+    st.subheader("Model Evaluation")
+    st.text(classification_report(y_test, y_pred))
+
+    st.subheader("Confusion Matrix")
+    fig, ax = plt.subplots()
+    sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', ax=ax)
+    st.pyplot(fig)
+
+    explainer, shap_values = explain_model(model, X_train)
+    st.subheader("Feature Importance (SHAP)")
+    shap.summary_plot(shap_values, X_train, plot_type="bar", show=False)
+    st.pyplot(bbox_inches='tight')
+
+st.sidebar.header("Accident Risk Predictor")
+
+if st.sidebar.button("Predict Risk"):
+    sample = data.sample(1).drop(columns=['Accident_Severity'])
+    prediction = model.predict(sample)
+    st.sidebar.write(f"Predicted Severity: {prediction[0]}")
